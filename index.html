@@ -23,7 +23,7 @@
             overflow-x: hidden;
             overflow-y: auto;
         }
-        .myeongjo { font-family: 'Nanum+Myeongjo', serif; }
+        .myeongjo { font-family: 'Nanum Myeongjo', serif; }
 
         .bg-overlay {
             position: fixed;
@@ -115,10 +115,20 @@
             filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.8));
         }
         
-        /* 모바일 최적화: 캔버스 및 SVG 크기 조정 */
         .atom-container svg {
             max-width: 100%;
             height: auto;
+        }
+
+        #report-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            z-index: 300;
+            padding: 1rem;
+            align-items: center;
+            justify-content: center;
         }
     </style>
 </head>
@@ -204,13 +214,23 @@
         </div>
     </div>
 
+    <!-- Report Modal -->
+    <div id="report-modal">
+        <div class="glass-panel w-full max-w-lg rounded-3xl p-8 shadow-2xl relative">
+            <button onclick="document.getElementById('report-modal').style.display='none'" class="absolute top-4 right-6 text-2xl opacity-50 hover:opacity-100">&times;</button>
+            <h2 class="myeongjo text-2xl text-blue-400 mb-6 border-b border-white/10 pb-4">나의 탈출 리포트</h2>
+            <div id="report-list" class="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                <!-- 리포트 항목이 여기에 추가됨 -->
+            </div>
+            <button onclick="document.getElementById('report-modal').style.display='none'" class="w-full mt-8 py-3 bg-blue-600 rounded-xl font-bold">닫기</button>
+        </div>
+    </div>
+
     <script>
         function getAtomSVG(electrons, isComplex = false) {
             const nuclearColor = "#ff3333"; 
             const neutronColor = "#555555"; 
             const electronColor = varColor('--neon-blue');
-            
-            // 모바일 환경에 맞춰 기본 크기 및 비율 유지
             const baseSize = 250;
             
             if(isComplex) {
@@ -258,7 +278,8 @@
         }
 
         function varColor(name) {
-            return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            const val = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+            return val || "#00f2ff";
         }
 
         const stages = [
@@ -366,6 +387,8 @@
         let currentStage = 0;
         let timer = 0;
         let timerInterval;
+        // 각 단계별 시도 횟수 기록용 배열
+        let attemptData = stages.map(() => 0);
 
         function powerOn() {
             document.getElementById('start-screen').style.opacity = '0';
@@ -377,6 +400,7 @@
 
         function initGame() {
             currentStage = 0;
+            attemptData = stages.map(() => 0); // 기록 초기화
             showStoryStep();
             if(!timerInterval) {
                 timerInterval = setInterval(() => {
@@ -401,7 +425,6 @@
             document.getElementById('story-title').innerText = data.title;
             document.getElementById('story-description').innerText = data.description;
             
-            // 페이지 상단으로 스크롤 이동 (모바일 대비)
             storyOverlay.scrollTop = 0;
         }
 
@@ -446,6 +469,8 @@
 
         function checkAnswer(idx) {
             const data = stages[currentStage];
+            attemptData[currentStage]++; // 시도 횟수 증가
+            
             if (idx === data.answer) {
                 showCutscene(data.story);
             } else {
@@ -491,6 +516,30 @@
             }
         }
 
+        function showReport() {
+            const list = document.getElementById('report-list');
+            list.innerHTML = '';
+            
+            stages.forEach((stage, idx) => {
+                const attempts = attemptData[idx];
+                const item = document.createElement('div');
+                item.className = 'bg-white/5 p-4 rounded-2xl border border-white/10 flex justify-between items-center';
+                item.innerHTML = `
+                    <div>
+                        <div class="text-[10px] text-blue-400 uppercase tracking-widest mb-1">${stage.loc}</div>
+                        <div class="text-sm sm:text-base font-bold">${stage.title.split(': ')[1]}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] opacity-40 uppercase">Attempts</div>
+                        <div class="text-xl font-mono ${attempts === 1 ? 'text-green-400' : 'text-red-400'}">${attempts}</div>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+            
+            document.getElementById('report-modal').style.display = 'flex';
+        }
+
         function winGame() {
             clearInterval(timerInterval);
             document.body.innerHTML = `
@@ -506,12 +555,23 @@
                             교문을 나서자마자 마음을 졸이며 기다리던 <span class="text-blue-600 font-bold">기나쌤</span>이 당신을 반겨줍니다.<br>
                             선생님의 따뜻한 미소가 어두웠던 학교의 기억을 모두 씻어내 줍니다.
                         </p>
-                        <div class="bg-white/50 backdrop-blur-sm p-6 sm:p-8 rounded-2xl shadow-xl mb-12 sm:mb-16 inline-block">
+                        <div class="bg-white/50 backdrop-blur-sm p-6 sm:p-8 rounded-2xl shadow-xl mb-8 inline-block">
                             <div class="text-[10px] opacity-40 mb-2 uppercase tracking-[0.2em]">Total Rescue Time</div>
                             <div class="text-4xl sm:text-6xl font-mono font-bold text-blue-950">${document.getElementById('game-timer').innerText}</div>
                         </div>
-                        <br>
-                        <button onclick="location.reload()" class="bg-blue-600 text-white px-10 sm:px-20 py-4 sm:py-6 font-bold tracking-[0.3em] text-base sm:text-lg hover:bg-blue-800 shadow-2xl transition-all rounded-full">다시 도전하기</button>
+                        
+                        <div class="flex flex-col gap-4 max-w-sm mx-auto">
+                            <button onclick="showReport()" class="bg-white border-2 border-blue-600 text-blue-600 px-8 py-4 font-bold tracking-widest text-lg hover:bg-blue-50 transition-all rounded-2xl shadow-lg">나의 탈출 기록 보기</button>
+                            <button onclick="location.reload()" class="bg-blue-600 text-white px-8 py-4 font-bold tracking-widest text-lg hover:bg-blue-800 transition-all rounded-2xl shadow-xl">다시 도전하기</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="report-modal">
+                    <div class="glass-panel w-full max-w-lg rounded-3xl p-8 shadow-2xl relative text-white text-left">
+                        <button onclick="document.getElementById('report-modal').style.display='none'" class="absolute top-4 right-6 text-2xl opacity-50 hover:opacity-100">&times;</button>
+                        <h2 class="myeongjo text-2xl text-blue-400 mb-6 border-b border-white/10 pb-4">나의 탈출 리포트</h2>
+                        <div id="report-list" class="space-y-4 max-h-[50vh] overflow-y-auto pr-2"></div>
+                        <button onclick="document.getElementById('report-modal').style.display='none'" class="w-full mt-8 py-3 bg-blue-600 rounded-xl font-bold">닫기</button>
                     </div>
                 </div>
             `;
